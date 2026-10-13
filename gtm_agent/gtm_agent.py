@@ -103,14 +103,20 @@ def _offering_has_required_fields(offering):
 
 
 @tool
-def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict:
-    "Score a prospect profile's potential for an offering on a 1-100 scale with a justification. Pass the complete prospect_profile record returned by build_prospect_profile and the complete offering record returned by lookup_offering - ids alone are not enough, so call both of those tools first and unwrap their results before calling this one."
-    if offering is None or not _offering_has_required_fields(offering):
+def score_prospect(prospect_id: str, offering_id: str) -> dict:
+    "Score a prospect against an offering by id (e.g. 'LEAD-71001', 'OFFER-10005'). Returns score, justification and rubric_breakdown."
+    offering = data_service.get_offering(offering_id)
+    if not _offering_has_required_fields(offering):
         return {"score": None, "error": "Cannot score without a valid offering."}
-    # Score against the prospect's saved tech stack of record.
-    pid = prospect_profile.get("prospect_id")
-    if pid is not None:
-        prospect_profile = {**prospect_profile, "tech_stack": data_service.fetch_tech_stack(pid)}
+    record = data_service.get_prospect_record(prospect_id)
+    if record is None:
+        return {"score": None, "error": "Prospect not found."}
+    prospect_profile = {
+        "prospect_id": prospect_id,
+        "annual_revenue": record["annual_revenue"],
+        "account_details": data_service.fetch_account_details(prospect_id),
+        "tech_stack": data_service.fetch_tech_stack(prospect_id),
+    }
     user = (
         "Offering:\n" + json.dumps(offering, indent=2) +
         "\n\nProspect profile:\n" + json.dumps(prospect_profile, indent=2)
